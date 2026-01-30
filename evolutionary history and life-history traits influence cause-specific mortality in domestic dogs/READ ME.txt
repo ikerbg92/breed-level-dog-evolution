@@ -1,44 +1,67 @@
 READ ME
 
-This file contains all the necessary information to use the data and code to reproduce the analyses for the paper "Evolutionary History and Life History Traits Influence Cause-Specific Mortality in Domestic Dogs"
+This folder contains all data files, code, and derived results required to reproduce the analyses presented in the article:
 
-The complete life history dataset can be identified by the name "data", and is provided in two versions: 
+“Evolutionary history and life-history traits influence cause-specific mortality in domestic dogs.”
 
-1. data (excel file) contains extra headers with self-explanatory column names.
+All analyses are conducted at the breed level and are fully reproducible using the files provided here.
 
-2. data (.csv file) contains data without those extra headers to easily export the dataset to R.
+1. Data files
 
-Both "data" files are identical except by the extra headers and include the following information by column (ordered left to right):
+The complete life-history and mortality dataset is provided under the name data, in two equivalent formats:
 
-A. breed code name from Parker et al. 2017
-B. breed code name from Garamszegi et al. 2020
-C and D. common breed name and synonym (if any)
+data.xlsx: An Excel version including additional header rows with self-explanatory column labels to facilitate inspection and manual exploration.
 
-E to G. Careau et al. 2010 data on behaviour
+data.csv: A plain CSV version without extra headers, intended for direct import into R and other statistical software.
 
-H to AK. Adult weight data by source listed below. Adult weight data can be identified by the letter "w" at the beginning of the cell name. 
-Some sources report adult weight as a range, thus numbers "1" and "2" following the letter "w" refer to the lower and upper values of such range. Column AK contains weight variable used in the paper.
+Both files contain identical data and differ only the additional header of the .xlsx version.
 
-AL to AX. Lifespan data by source. lifespan data can be identified by the letter "l" at the beginning of the cell name. 
-Some sources report lifespan as range, thus numbers "1" and "2" following the letter "l" refer to the lower and upper values of the range. Column AW contains the lifespan data used in the analyses of our article.
+2. Structure of the main dataset (data)
 
-AY to BU. Litter size data by source. litter size data can be identified by the letters "ls" at the beginning of the cell name. 
-Column BS contains litter size data used in the analyses of our article.
+Columns are ordered from left to right as follows:
 
-BV to CG. Neonate weight data by source. Neonate weight data can be identified by the letters "bw" (for "birth weight") 
-at the beginning of the cell name.
+A–B: Breed code names following Parker et al. (2017) and Garamszegi et al. (2020)
 
-CH. Reproductive investment data calculated as = birth weight in kg (bwkg) multiplied by litter size (ls) = "bwkgxls".
+C–D: Common breed name and synonym (if available).
 
-CI to CN. growth data from Hawthorne et al. (2004) and Posada et al. (2014). These data were used to compare with our growth estimate (CO)
+E–G: Behavioural trait data from Careau et al. (2010).
 
-CO. Growth data calculated as stated in methods.
+H–AK: Adult weight data compiled from multiple sources. Columns starting with “w” indicate adult weight values. When weight is reported as a range, suffixes 1 and 2 correspond to lower and upper bounds. Column AK contains the adult body mass variable used in the analyses.
 
-CP to DL. VMDB data reported by Fleming et al. 2011.
+AL–AX: Lifespan data. Columns starting with “l” correspond to lifespan estimates. As above, 1 and 2 indicate lower and upper bounds when ranges are reported. Column AW contains the lifespan variable used in the article.
 
-3. Code.
+AY–BU: Litter size data. Columns starting with “ls” correspond to litter size estimates. Column BS contains the litter size variable used in the analyses.
 
-* Please note that the SNP‐based (“common ancestry”) and haplotype‐based (“haplotype sharing”) matrices used in this study are original supplementary materials from Garamszegi et al. (2020): The role of common ancestry and gene flow in the evolution of human-directed play behaviour in dogs (Journal of Evolutionary Biology, 33: 318–328). We used these matrices without modification, restricting them only to the subset of dog breeds for which mortality data were available in the present study.
+BV–CG: Neonatal (birth) weight data. Columns starting with “bw” correspond to birth weight estimates.
+
+CH: Reproductive investment. Reproductive investment calculated as: birth weight (kg) × litter size, labelled as bwkgxls.
+
+CI–CN: Growth data from published sources. Growth estimates from Hawthorne et al. (2004) and Posada et al. (2014), used for comparison with our derived growth metric (CO).
+
+CP–DL: Mortality data. Breed-level cause-of-death data derived from the Veterinary Medical Database (VMDB), as reported in Fleming et al. (2011), classified by organ system (OS) or pathophysiological process (PP)
+
+3. Genetic similarity matrices used as random effects in the Bayesian models:
+
+snps.csv — SNP-based similarity matrix (common ancestry)
+
+haplotypes.csv — haplotype-sharing matrix (hybridization)
+
+These matrices are derived from the original supplementary materials of: Garamszegi, L. Z., Temrin, H., Kubinyi, E., Miklósi, Á., & Kolm, N. (2020). The role of common ancestry and gene flow in the evolution of human-directed play behaviour in dogs.
+Journal of Evolutionary Biology, 33(3), 318–328.
+
+The matrices provided here are restricted to the subset of dog breeds for which mortality and life-history data are available in the present study, but are otherwise unmodified in structure.
+
+4. Code. 
+
+R script is commented and organized to allow full reproducibility of the analyses.
+
+5. Final results object
+
+The file finalresults.RData contains saved R model outputs.
+
+6. Notes on reuse
+
+All data and code are provided for transparency and reproducibility. Users are encouraged to cite the associated article and the original data sources when reusing these materials.
 
 Literature cited (sources for the life history data)
 
