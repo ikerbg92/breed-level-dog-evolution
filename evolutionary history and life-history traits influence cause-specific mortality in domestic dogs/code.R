@@ -1,4 +1,4 @@
-
+setwd("C:/Users/ikerb/OneDrive - Instituto de Ecología/GitHub/evolutionary history and life-history traits influence cause-specific mortality in domestic dogs")
 setwd()
 
 # ------------------------------------------------------------
@@ -72,9 +72,7 @@ haplotypes<-read.csv("haplotypes.csv", header=TRUE)
 
 # ------------------------------------------------------------
 # Priors for Bayesian models (MCMCglmm)
-# Priors are based on Hadfield (2010), with variants used depending on:
-# - whether the response is univariate vs multinomial
-# - number of response categories (OS vs PP)
+# Priors are based on Hadfield (2010), with variants used depending on the number of response categories (OS vs PP)
 # ------------------------------------------------------------
 
 # Based on Hadfield (2010): basic structure for R (residual) and two G matrices
@@ -106,7 +104,7 @@ prior4 <- list(
     G1 = list(V = diag(6), nu = 0.002),
     G2 = list(V = diag(6), nu = 0.002)))
 
-# For multinomial models with 11 variables (OS)
+# For multinomial models with 9 variables
 prior5 <- list(
   R = list(V = diag(8), nu = 0.002),
   G = list(
@@ -116,7 +114,6 @@ prior5 <- list(
 # ------------------------------------------------------------
 # Diagnostic helper: autocorrelation plots for MCMC chains
 # Input x is typically an mcmc object/matrix with posterior samples (columns = parameters).
-# This function loops across parameters and plots ACF up to lag 100.
 # ------------------------------------------------------------
 plot.acfs <- function(x) {
   n <- dim(x)[2]
@@ -365,56 +362,38 @@ fleming$haplo = Hapsvd2
 ###############################################################################
 # Analysis: influence of common ancestry and haplotype sharing (gene flow proxy)
 # on among-breed variation in causes of death by Organ System (OS)
-#
-# MODEL TYPE:
-# - Bayesian mixed-effects MULTINOMIAL model (MCMCglmm)
-# - NO fixed predictors (intercept-free trait parameterization only)
-#
-# BIOLOGICAL/STATISTICAL PURPOSE:
-# - Partition among-breed variance in OS mortality categories into components
-#   attributable to:
-#   (i) common ancestry (SNP-based similarity; random effect: phylo)
-#   (ii) haplotype sharing / gene flow (haplotype-based similarity; random effect: haplo)
-#   (iii) residual ("units") variance at the breed level
-#
-# NOTE:
-# - The response is a vector of breed-level counts across OS categories.
-# - "trait - 1" estimates a separate baseline (intercept) for each OS category
-#   (no overall reference category intercept in the fixed effects).
 ###############################################################################
 
 # This line prints a subset of column names in `fleming` (columns 26, 27, 30, 33, 36).
 # Practical purpose: to verify which OS count columns are being pooled into "others".
-names(fleming)[c(26, 27, 30, 33, 36)]
+names(fleming)[c(26, 30, 33, 36)]
 
 # Create an aggregated OS category ("OSothers_N") by summing selected OS count columns.
 # Purpose: reduce sparse/low-frequency categories by pooling them into a single "others"
 # category, so the multinomial response has 9 categories in total (multinomial9).
 fleming$OSothers_N<-rowSums(fleming[, c(26, 30, 33, 36)])
 
-# Fit the multinomial MCMCglmm model:
-OS_multinomial <- MCMCglmm(cbind(OScv_N,
-                                 OSendo_N,
-                                 OSgi_N, 
-                                 OShem_N, 
-                                 OSms_N, 
-                                 OSneuro_N,
-                                 OSresp_N, 
-                                 OSuro_N,
-                                 OSothers_N) ~ trait-1, 
-                           random = ~idh(trait):phylo + idh(trait):haplo, 
-                           rcov = ~idh(trait):units, 
-                           data = fleming, 
-                           family = "multinomial9",
-                           prior = prior5,
-                           thin = 400,
-                           burnin = 100000,
-                           nitt = 1800000,
-                           verbose = TRUE)
+# # Fit the multinomial MCMCglmm model:
+# OS_multinomial <- MCMCglmm(cbind(OScv_N,
+#                                  OSendo_N,
+#                                  OSgi_N, 
+#                                  OShem_N, 
+#                                  OSms_N, 
+#                                  OSneuro_N,
+#                                  OSresp_N, 
+#                                  OSuro_N,
+#                                  OSothers_N) ~ trait-1, 
+#                            random = ~idh(trait):phylo + idh(trait):haplo, 
+#                            rcov = ~idh(trait):units, 
+#                            data = fleming, 
+#                            family = "multinomial9",
+#                            prior = prior5,
+#                            thin = 400,
+#                            burnin = 100000,
+#                            nitt = 1800000,
+#                            verbose = TRUE)
 
 # Basic model inspection:
-# - plot(): trace/density style plots for quick visual diagnostics
-# - summary(): posterior means, credible intervals, and variance components summaries
 plot(OS_multinomial)
 summary(OS_multinomial)
 
@@ -426,16 +405,6 @@ autocorr.diag(OS_multinomial$Sol)
 
 # Custom ACF plots for each variance component (lag up to 100; defined previously as plot.acfs)
 plot.acfs(OS_multinomial$VCV)
-
-# ------------------------------------------------------------
-# Posterior summarization: variance partitioning by category/component
-#
-# Goal:
-# For each column in OS_multinomial$VCV, compute the posterior distribution of the
-# proportion of total variance explained:
-#   VCV[, i] / rowSums(VCV)
-# Then summarize that posterior proportion using the 95% HPD interval.
-# ------------------------------------------------------------
 
 # Calculate the HPD intervals of variance proportions and store them in a list.
 # Each list element corresponds to one variance component column in OS_multinomial$VCV.
@@ -497,17 +466,6 @@ OS_multinomial_results <- do.call(rbind, OS_multinomial_results_list)
 # View the resulting summary table
 print(OS_multinomial_results)
 
-# ------------------------------------------------------------
-# Human-readable labeling
-#
-# The VCV column names produced by MCMCglmm are typically technical and encode:
-# - OS category
-# - random effect source (phylo vs haplo vs units)
-#
-# Here, those labels are replaced by a manually curated vector of readable names.
-# NOTE: This improves interpretability for tables/figures and manuscript reporting.
-# ------------------------------------------------------------
-
 # Correct variable names list
 correct_variable_names <- c(
   "Cardiovascular (common ancestry)", "Endocrine (common ancestry)", "Gastrointestinal (common ancestry)", "Hematopoietic (common ancestry)", "Musculoskeletal (common ancestry)", "Neurologic (common ancestry)",
@@ -517,7 +475,6 @@ correct_variable_names <- c(
   "Neurologic (units)", "Respiratory (units)", "Urogenital (units)"
 )
 
-# Replace the technical "Variable" column with the human-readable labels above.
 OS_multinomial_results$Variable <- correct_variable_names
 
 # View the renamed table (now ready for export or manuscript table assembly)
@@ -526,206 +483,101 @@ print(OS_multinomial_results)
 # Optional export (commented out): write the final summary table to CSV for downstream use
 # write.csv(OS_multinomial_results, "OS_multinomial_results_final.csv", row.names = FALSE)
 
-# ------------------------------------------------------------
-# Convenience filter: remove "units" rows
-#
-# Rationale:
-# For some reporting contexts (e.g., a table focused only on genetic components),
-# it is useful to exclude the residual ("units") component and keep only:
-# - common ancestry (phylo)
-# - haplotype sharing / hybridization (haplo)
-# ------------------------------------------------------------
 OS_multinomial_results_filtered <- OS_multinomial_results[!grepl("units", OS_multinomial_results$Variable), ]
 print(OS_multinomial_results_filtered)
 
 ###############################################################################
-# Analysis: influence of common ancestry and haplotype sharing (gene flow proxy)
-# on among-breed variation in causes of death by Organ System (OS)
-#
-# MODEL TYPE:
-# - Bayesian mixed-effects MULTINOMIAL model (MCMCglmm)
-# - NO fixed predictors (intercept-free trait parameterization only)
-#
-# BIOLOGICAL/STATISTICAL PURPOSE:
-# - Partition among-breed variance in OS mortality categories into components
-#   attributable to:
-#   (i) common ancestry (SNP-based similarity; random effect: phylo)
-#   (ii) haplotype sharing / gene flow (haplotype-based similarity; random effect: haplo)
-#   (iii) residual ("units") variance at the breed level
-#
-# NOTE:
-# - The response is a vector of breed-level counts across OS categories.
-# - "trait - 1" estimates a separate baseline (intercept) for each OS category
-#   (no overall reference category intercept in the fixed effects).
-###############################################################################
 
-# This line prints a subset of column names in `fleming` (columns 26, 27, 30, 33, 36).
-# Practical purpose: to verify which OS count columns are being pooled into "others".
-names(fleming)[c(26, 27, 30, 33, 36)]
+#Analysis of the influence of common ancestry and gene flow on the among-breed variation in diseases (PP)
+#MULTINOMIAL MODEL WITH NO PREDICTOR
+names(fleming)[c(43, 45, 46)]
+fleming$PPothers_N <- rowSums(fleming[, c(43, 45, 46)])
+# PP_multinomial = MCMCglmm(cbind(PPcongen_N, 
+#                                 PPdegen_N, 
+#                                 PPinfect_N, 
+#                                 PPinflam_N, 
+#                                 PPmetab_N, 
+#                                 PPneopl_N, 
+#                                 PPtraum_N,
+#                                 PPothers_N) ~ trait-1, 
+#                           random = ~idh(trait):phylo + idh(trait):haplo, 
+#                           rcov = ~idh(trait):units, 
+#                           data = fleming, 
+#                           family = "multinomial8",
+#                           prior = prior3,
+#                           thin = 400,
+#                           burnin = 100000,
+#                           nitt = 1800000,
+#                           verbose = TRUE)
 
-# Create an aggregated OS category ("OSothers_N") by summing selected OS count columns.
-# Purpose: reduce sparse/low-frequency categories by pooling them into a single "others"
-# category, so the multinomial response has 9 categories in total (multinomial9).
-fleming$OSothers_N<-rowSums(fleming[, c(26, 30, 33, 36)])
+# plot(PP_multinomial)
+summary(PP_multinomial)
+autocorr.diag(PP_multinomial$VCV)
+autocorr.diag(PP_multinomial$Sol)
+plot.acfs(PP_multinomial$VCV)
 
-# Fit the multinomial MCMCglmm model:
-# Response: cbind(...) of OS-specific death counts per breed (including pooled "others")
-# Fixed effects: ~ trait - 1  (separate category-specific intercepts)
-# Random effects:
-#   - idh(trait):phylo  : category-specific random effects structured by common ancestry
-#   - idh(trait):haplo  : category-specific random effects structured by haplotype sharing
-# Residual structure:
-#   - idh(trait):units  : category-specific residual variance (breed-level)
-#
-# family = "multinomial9" indicates 9 response categories.
-# prior = prior5 corresponds to an OS multinomial structure with the appropriate dimension.
-# thin/burnin/nitt define MCMC sampling and chain length for posterior inference.
-OS_multinomial <- MCMCglmm(cbind(OScv_N,
-                                 OSendo_N,
-                                 OSgi_N, 
-                                 OShem_N, 
-                                 OSms_N, 
-                                 OSneuro_N,
-                                 OSresp_N, 
-                                 OSuro_N,
-                                 OSothers_N) ~ trait-1, 
-                           random = ~idh(trait):phylo + idh(trait):haplo, 
-                           rcov = ~idh(trait):units, 
-                           data = fleming, 
-                           family = "multinomial9",
-                           prior = prior5,
-                           thin = 400,
-                           burnin = 100000,
-                           nitt = 1800000,
-                           verbose = TRUE)
-
-# Basic model inspection:
-# - plot(): trace/density style plots for quick visual diagnostics
-# - summary(): posterior means, credible intervals, and variance components summaries
-plot(OS_multinomial)
-summary(OS_multinomial)
-
-# Autocorrelation diagnostics for:
-# - VCV: posterior samples of (co)variance components (random effects + residual)
-# - Sol: posterior samples of fixed effects (trait-specific intercepts here)
-autocorr.diag(OS_multinomial$VCV)
-autocorr.diag(OS_multinomial$Sol)
-
-# Custom ACF plots for each variance component (lag up to 100; defined previously as plot.acfs)
-plot.acfs(OS_multinomial$VCV)
-
-# ------------------------------------------------------------
-# Posterior summarization: variance partitioning by category/component
-#
-# Goal:
-# For each column in OS_multinomial$VCV, compute the posterior distribution of the
-# proportion of total variance explained:
-#   VCV[, i] / rowSums(VCV)
-# Then summarize that posterior proportion using the 95% HPD interval.
-# ------------------------------------------------------------
-
-# Calculate the HPD intervals of variance proportions and store them in a list.
-# Each list element corresponds to one variance component column in OS_multinomial$VCV.
-OS_multinomial_HPD_intervals <- lapply(1:ncol(OS_multinomial$VCV), function(i) {
-  HPDinterval(OS_multinomial$VCV[, i] / rowSums(OS_multinomial$VCV))
+# Calculate the HPD intervals and store them in a list
+PP_multinomial_HPD_intervals <- lapply(1:ncol(PP_multinomial$VCV), function(i) {
+  HPDinterval(PP_multinomial$VCV[, i] / rowSums(PP_multinomial$VCV))
 })
 
-# Label each list element using the original VCV column names (e.g., trait:phylo, trait:haplo, trait:units by category)
-names(OS_multinomial_HPD_intervals) <- colnames(OS_multinomial$VCV)
+# Name each element in the list with the corresponding column name
+names(PP_multinomial_HPD_intervals) <- colnames(PP_multinomial$VCV)
 
-# Convert the list of HPD intervals into a single data.frame for easier inspection/export.
-# Output columns:
-# - Variable: original variance component label
-# - Lower/Upper: 95% HPD bounds for the variance proportion
-OS_multinomial_HPD_intervals_df <- do.call(rbind, lapply(names(OS_multinomial_HPD_intervals), function(name) {
+# Convert the list of HPD intervals into a data.frame
+PP_multinomial_HPD_intervals_df <- do.call(rbind, lapply(names(PP_multinomial_HPD_intervals), function(name) {
   data.frame(
     Variable = name,
-    Lower = OS_multinomial_HPD_intervals[[name]][, "lower"],
-    Upper = OS_multinomial_HPD_intervals[[name]][, "upper"]
+    Lower = PP_multinomial_HPD_intervals[[name]][, "lower"],
+    Upper = PP_multinomial_HPD_intervals[[name]][, "upper"]
   )
 }))
 
-# View the HPD interval table (variance proportions) in the console
-print(OS_multinomial_HPD_intervals_df)
+# View the results
+print(PP_multinomial_HPD_intervals_df)
 
-# ------------------------------------------------------------
-# Extended summary table: HPD + median for each variance proportion
-#
-# Goal:
-# For each variance component column i:
-# - compute posterior proportions (VCV[,i]/total)
-# - compute HPD (95%) and median of that posterior distribution
-# - store results as one row per component
-# ------------------------------------------------------------
-
-# Create a list to store row-wise summary results
-OS_multinomial_results_list <- lapply(1:ncol(OS_multinomial$VCV), function(i) {
-  # Posterior distribution of the proportion explained by component i
-  OS_multinomial_variable_proportion <- OS_multinomial$VCV[, i] / rowSums(OS_multinomial$VCV)
+# Create a list to store the results
+PP_multinomial_results_list <- lapply(1:ncol(PP_multinomial$VCV), function(i) {
+  # Calculate the proportion of the variable
+  PP_multinomial_variable_proportion <- PP_multinomial$VCV[, i] / rowSums(PP_multinomial$VCV)
   
-  # Summaries of the posterior distribution:
-  # - HPDinterval(): 95% highest posterior density interval
-  # - median(): robust central tendency of the posterior distribution
-  OS_multinomial_hpd <- HPDinterval(OS_multinomial_variable_proportion)
-  OS_multinomial_median_val <- median(OS_multinomial_variable_proportion)
+  # Calculate HPD, mean, and median
+  PP_multinomial_hpd <- HPDinterval(PP_multinomial_variable_proportion)
+  PP_multinomial_median_val <- median(PP_multinomial_variable_proportion)
   
-  # Store one row with component name + HPD bounds + median
+  # Store the results in a data.frame
   data.frame(
-    Variable = colnames(OS_multinomial$VCV)[i],
-    Lower = OS_multinomial_hpd[1, "lower"],
-    Upper = OS_multinomial_hpd[1, "upper"],
-    Median = OS_multinomial_median_val
+    Variable = colnames(PP_multinomial$VCV)[i],
+    Lower = PP_multinomial_hpd[1, "lower"],
+    Upper = PP_multinomial_hpd[1, "upper"],
+    Median = PP_multinomial_median_val
   )
 })
 
-# Combine all rows into a single data.frame (one row per variance component)
-OS_multinomial_results <- do.call(rbind, OS_multinomial_results_list)
+# Combine all the results into a single data.frame
+PP_multinomial_results <- do.call(rbind, PP_multinomial_results_list)
 
-# View the resulting summary table
-print(OS_multinomial_results)
+# View the resulting data.frame
+print(PP_multinomial_results)
 
-# ------------------------------------------------------------
-# Human-readable labeling
-#
-# The VCV column names produced by MCMCglmm are typically technical and encode:
-# - OS category
-# - random effect source (phylo vs haplo vs units)
-#
-# Here, those labels are replaced by a manually curated vector of readable names.
-# NOTE: This improves interpretability for tables/figures and manuscript reporting.
-# ------------------------------------------------------------
-
-# Correct variable names list
+# Correct list of names
 correct_variable_names <- c(
-  "Cardiovascular (common ancestry)", "Endocrine (common ancestry)", "Gastrointestinal (common ancestry)", "Hematopoietic (common ancestry)", "Musculoskeletal (common ancestry)", "Neurologic (common ancestry)",
-  "Respiratory (common ancestry)", "Urogenital (common ancestry)", "Cardiovascular (hybridization)", "Endocrine (hybridization)", "Gastrointestinal (hybridization)", "Hematopoietic (hybridization)",
-  "Musculoskeletal (hybridization)", "Neurologic (hybridization)", "Respiratory (hybridization)", "Urogenital (hybridization)",
-  "Cardiovascular (units)", "Endocrine (units)", "Gastrointestinal (units)", "Hematopoietic (units)", "Musculoskeletal (units)",
-  "Neurologic (units)", "Respiratory (units)", "Urogenital (units)"
+  "Congenital (common ancestry)", "Degenerative (common ancestry)", "Infectious (common ancestry)", "Inflammatory (common ancestry)", "Metabolic (common ancestry)",
+  "Neoplastic (common ancestry)", "Traumatic (common ancestry)", 
+  "Congenital (hybridization)", "Degenerative (hybridization)", "Infectious (hybridization)", "Inflammatory (hybridization)", "Metabolic (hybridization)",
+  "Neoplastic (hybridization)", "Traumatic (hybridization)", 
+  "Congenital (units)", "Degenerative (units)", "Infectious (units)", "Inflammatory (units)", "Metabolic (units)",
+  "Neoplastic (units)", "Traumatic (units)"
 )
 
-# Replace the technical "Variable" column with the human-readable labels above.
-OS_multinomial_results$Variable <- correct_variable_names
 
-# View the renamed table (now ready for export or manuscript table assembly)
-print(OS_multinomial_results)
+# Replace the "Variable" column names in PP_multinomial_results
+PP_multinomial_results$Variable <- correct_variable_names
 
-# Optional export (commented out): write the final summary table to CSV for downstream use
-# write.csv(OS_multinomial_results, "OS_multinomial_results_final.csv", row.names = FALSE)
+# View the resulting data.frame
+print(PP_multinomial_results)
+# write.csv(PP_multinomial_results, "PP_multinomial_results_final.csv", row.names = FALSE)
 
-# ------------------------------------------------------------
-# Convenience filter: remove "units" rows
-#
-# Rationale:
-# For some reporting contexts (e.g., a table focused only on genetic components),
-# it is useful to exclude the residual ("units") component and keep only:
-# - common ancestry (phylo)
-# - haplotype sharing / hybridization (haplo)
-# ------------------------------------------------------------
-OS_multinomial_results_filtered <- OS_multinomial_results[!grepl("units", OS_multinomial_results$Variable), ]
-print(OS_multinomial_results_filtered)
-
-###############################################################################
 ###############################################################################
 # ------------------------------------------------------------
 # Subset construction: breeds with causes of death + body weight data
@@ -909,24 +761,24 @@ dfweight$haplo = Hapsvd2
 dfweight$OSothers_N<-rowSums(dfweight[, c(27, 31, 34, 37)])
 
 # Fit the multinomial model with category-specific weight effects
-OS_multinomial_weight <- MCMCglmm(cbind(OScv_N,
-                                        OSendo_N,
-                                        OSgi_N, 
-                                        OShem_N, 
-                                        OSms_N, 
-                                        OSneuro_N,
-                                        OSresp_N, 
-                                        OSuro_N,
-                                        OSothers_N) ~ trait-1+trait:scaleweight,
-                                  random = ~idh(trait):phylo + idh(trait):haplo, 
-                                  rcov = ~idh(trait):units, 
-                                  data = dfweight, 
-                                  family = "multinomial9",
-                                  prior = prior5,
-                                  thin = 400,
-                                  burnin = 100000,
-                                  nitt = 1800000,
-                                  verbose = TRUE)
+# OS_multinomial_weight <- MCMCglmm(cbind(OScv_N,
+#                                         OSendo_N,
+#                                         OSgi_N, 
+#                                         OShem_N, 
+#                                         OSms_N, 
+#                                         OSneuro_N,
+#                                         OSresp_N, 
+#                                         OSuro_N,
+#                                         OSothers_N) ~ trait-1+trait:scaleweight,
+#                                   random = ~idh(trait):phylo + idh(trait):haplo, 
+#                                   rcov = ~idh(trait):units, 
+#                                   data = dfweight, 
+#                                   family = "multinomial9",
+#                                   prior = prior5,
+#                                   thin = 400,
+#                                   burnin = 100000,
+#                                   nitt = 1800000,
+#                                   verbose = TRUE)
 
 # Optional quick visual inspection of traces/densities (commented out in this workflow)
 # plot(OS_multinomial_weight)
@@ -996,23 +848,23 @@ dfweight$PPothers_N<-rowSums(dfweight[, c(44, 46, 47)])
 # - Fixed effects: trait-specific intercepts and trait-specific slopes for scaleweight
 # - Random effects: genetic influence via common ancestry (phylo) and haplotype sharing (haplo)
 # - family = "multinomial8" specifies an 8-category multinomial response
-PP_multinomial_weight=MCMCglmm(cbind(PPcongen_N, 
-                                     PPdegen_N,
-                                     PPinflam_N,
-                                     PPinfect_N,
-                                     PPmetab_N, 
-                                     PPneopl_N,
-                                     PPtraum_N,
-                                     PPothers_N) ~ trait-1+trait:scaleweight, 
-                               random = ~idh(trait):phylo + idh(trait):haplo, 
-                               rcov = ~idh(trait):units, 
-                               data = dfweight, 
-                               family = "multinomial8",
-                               prior = prior3,
-                               thin = 400,
-                               burnin = 100000,
-                               nitt = 1800000,
-                               verbose = TRUE)
+# PP_multinomial_weight=MCMCglmm(cbind(PPcongen_N, 
+#                                      PPdegen_N,
+#                                      PPinflam_N,
+#                                      PPinfect_N,
+#                                      PPmetab_N, 
+#                                      PPneopl_N,
+#                                      PPtraum_N,
+#                                      PPothers_N) ~ trait-1+trait:scaleweight, 
+#                                random = ~idh(trait):phylo + idh(trait):haplo, 
+#                                rcov = ~idh(trait):units, 
+#                                data = dfweight, 
+#                                family = "multinomial8",
+#                                prior = prior3,
+#                                thin = 400,
+#                                burnin = 100000,
+#                                nitt = 1800000,
+#                                verbose = TRUE)
 
 # Optional visual inspection of MCMC traces and posterior densities
 # plot(PP_multinomial_weight)
@@ -1236,24 +1088,24 @@ dfgrowth$haplo = Hapsvd2
 dfgrowth$OSothers_N <- rowSums(dfgrowth[, c(27, 31, 34, 37)])
 
 # Fit the multinomial model with category-specific growth effects
-OS_multinomial_growth <- MCMCglmm(cbind(OScv_N,
-                                        OSendo_N,
-                                        OSgi_N, 
-                                        OShem_N, 
-                                        OSms_N, 
-                                        OSneuro_N,
-                                        OSresp_N, 
-                                        OSuro_N,
-                                        OSothers_N) ~ trait-1+trait:scalegrowth,
-                                  random = ~idh(trait):phylo + idh(trait):haplo, 
-                                  rcov = ~idh(trait):units, 
-                                  data = dfgrowth, 
-                                  family = "multinomial9",
-                                  prior = prior5,
-                                  thin = 400,
-                                  burnin = 100000,
-                                  nitt = 1800000,
-                                  verbose = TRUE)
+# OS_multinomial_growth <- MCMCglmm(cbind(OScv_N,
+#                                         OSendo_N,
+#                                         OSgi_N, 
+#                                         OShem_N, 
+#                                         OSms_N, 
+#                                         OSneuro_N,
+#                                         OSresp_N, 
+#                                         OSuro_N,
+#                                         OSothers_N) ~ trait-1+trait:scalegrowth,
+#                                   random = ~idh(trait):phylo + idh(trait):haplo, 
+#                                   rcov = ~idh(trait):units, 
+#                                   data = dfgrowth, 
+#                                   family = "multinomial9",
+#                                   prior = prior5,
+#                                   thin = 400,
+#                                   burnin = 100000,
+#                                   nitt = 1800000,
+#                                   verbose = TRUE)
 
 # Optional visual inspection of MCMC traces and posterior densities
 # plot(OS_multinomial_growth)
@@ -1324,23 +1176,23 @@ dfgrowth$PPothers_N <- rowSums(dfgrowth[, c(44, 46, 47)])
 # - Fixed effects: trait-specific intercepts and trait-specific slopes for scalegrowth
 # - Random effects: genetic influence via common ancestry (phylo) and haplotype sharing (haplo)
 # - family = "multinomial8" specifies an 8-category multinomial response
-PP_multinomial_growth = MCMCglmm(cbind(PPinfect_N, 
-                                       PPcongen_N, 
-                                       PPdegen_N, 
-                                       PPinflam_N, 
-                                       PPmetab_N, 
-                                       PPneopl_N,
-                                       PPtraum_N,
-                                       PPothers_N) ~ trait-1+trait:scalegrowth, 
-                                 random = ~idh(trait):phylo + idh(trait):haplo, 
-                                 rcov = ~idh(trait):units, 
-                                 data = dfgrowth, 
-                                 family = "multinomial8",
-                                 prior = prior3,
-                                 thin = 400,
-                                 burnin = 100000,
-                                 nitt = 1800000,
-                                 verbose = TRUE)
+# PP_multinomial_growth = MCMCglmm(cbind(PPinfect_N, 
+#                                        PPcongen_N, 
+#                                        PPdegen_N, 
+#                                        PPinflam_N, 
+#                                        PPmetab_N, 
+#                                        PPneopl_N,
+#                                        PPtraum_N,
+#                                        PPothers_N) ~ trait-1+trait:scalegrowth, 
+#                                  random = ~idh(trait):phylo + idh(trait):haplo, 
+#                                  rcov = ~idh(trait):units, 
+#                                  data = dfgrowth, 
+#                                  family = "multinomial8",
+#                                  prior = prior3,
+#                                  thin = 400,
+#                                  burnin = 100000,
+#                                  nitt = 1800000,
+#                                  verbose = TRUE)
 
 # Optional visual inspection of MCMC traces and posterior densities
 # plot(PP_multinomial)
@@ -1532,24 +1384,24 @@ dfbwkgxls$OSothers_N <- rowSums(dfbwkgxls[, c(27, 31, 34, 37)])
 
 # Fit OS multinomial model with category-specific effects of reproductive investment
 # and body weight
-OS_multinomial_bwkgxls <- MCMCglmm(cbind(OScv_N,
-                                         OSendo_N,
-                                         OSgi_N, 
-                                         OShem_N, 
-                                         OSms_N, 
-                                         OSneuro_N,
-                                         OSresp_N, 
-                                         OSuro_N,
-                                         OSothers_N) ~ trait -1 + trait:scalebwkgxls + trait:scaleweight,
-                                   random = ~idh(trait):phylo + idh(trait):haplo, 
-                                   rcov = ~idh(trait):units, 
-                                   data = dfbwkgxls, 
-                                   family = "multinomial9",
-                                   prior = prior5,
-                                   thin = 400,
-                                   burnin = 100000,
-                                   nitt = 1800000,
-                                   verbose = TRUE)
+# OS_multinomial_bwkgxls <- MCMCglmm(cbind(OScv_N,
+#                                          OSendo_N,
+#                                          OSgi_N, 
+#                                          OShem_N, 
+#                                          OSms_N, 
+#                                          OSneuro_N,
+#                                          OSresp_N, 
+#                                          OSuro_N,
+#                                          OSothers_N) ~ trait -1 + trait:scalebwkgxls + trait:scaleweight,
+#                                    random = ~idh(trait):phylo + idh(trait):haplo, 
+#                                    rcov = ~idh(trait):units, 
+#                                    data = dfbwkgxls, 
+#                                    family = "multinomial9",
+#                                    prior = prior5,
+#                                    thin = 400,
+#                                    burnin = 100000,
+#                                    nitt = 1800000,
+#                                    verbose = TRUE)
 
 # plot(OS_multinomial_bwkgxls)
 
@@ -1583,23 +1435,23 @@ dfbwkgxls$PPothers_N <- rowSums(dfbwkgxls[, c(44, 46, 47)])
 
 # Fit PP multinomial model with category-specific effects of reproductive investment
 # and body weight
-PP_multinomial_bwkgxls = MCMCglmm(cbind(PPcongen_N, 
-                                        PPdegen_N, 
-                                        PPinflam_N, 
-                                        PPinfect_N,
-                                        PPmetab_N, 
-                                        PPneopl_N,
-                                        PPtraum_N,
-                                        PPothers_N) ~ trait -1 + trait:scalebwkgxls + trait:scaleweight, 
-                                  random = ~idh(trait):phylo + idh(trait):haplo, 
-                                  rcov = ~idh(trait):units, 
-                                  data = dfbwkgxls, 
-                                  family = "multinomial8",
-                                  prior = prior3,
-                                  thin = 400,
-                                  burnin = 100000,
-                                  nitt = 1800000,
-                                  verbose = TRUE)
+# PP_multinomial_bwkgxls = MCMCglmm(cbind(PPcongen_N, 
+#                                         PPdegen_N, 
+#                                         PPinflam_N, 
+#                                         PPinfect_N,
+#                                         PPmetab_N, 
+#                                         PPneopl_N,
+#                                         PPtraum_N,
+#                                         PPothers_N) ~ trait -1 + trait:scalebwkgxls + trait:scaleweight, 
+#                                   random = ~idh(trait):phylo + idh(trait):haplo, 
+#                                   rcov = ~idh(trait):units, 
+#                                   data = dfbwkgxls, 
+#                                   family = "multinomial8",
+#                                   prior = prior3,
+#                                   thin = 400,
+#                                   burnin = 100000,
+#                                   nitt = 1800000,
+#                                   verbose = TRUE)
 
 # plot(PP_multinomial_bwkgxls)
 
@@ -1779,24 +1631,24 @@ dfactivity$OSothers_N <- rowSums(dfactivity[, c(27, 31, 34, 37)])
 # - Fixed effects: trait-specific intercepts plus trait-specific slopes for
 #   activity (scaleactivityCareau2010) and weight (scaleweight)
 # - Random effects: genetic influence via phylo (common ancestry) and haplo (haplotype sharing)
-OS_multinomial_activity <- MCMCglmm(cbind(OScv_N,
-                                          OSendo_N,
-                                          OSgi_N, 
-                                          OShem_N, 
-                                          OSms_N, 
-                                          OSneuro_N,
-                                          OSresp_N, 
-                                          OSuro_N,
-                                          OSothers_N) ~ trait -1 + trait:scaleactivityCareau2010 + trait:scaleweight,
-                                    random = ~idh(trait):phylo + idh(trait):haplo, 
-                                    rcov = ~idh(trait):units, 
-                                    data = dfactivity, 
-                                    family = "multinomial9",
-                                    prior = prior5,
-                                    thin = 400,
-                                    burnin = 100000,
-                                    nitt = 1800000,
-                                    verbose = TRUE)
+# OS_multinomial_activity <- MCMCglmm(cbind(OScv_N,
+#                                           OSendo_N,
+#                                           OSgi_N, 
+#                                           OShem_N, 
+#                                           OSms_N, 
+#                                           OSneuro_N,
+#                                           OSresp_N, 
+#                                           OSuro_N,
+#                                           OSothers_N) ~ trait -1 + trait:scaleactivityCareau2010 + trait:scaleweight,
+#                                     random = ~idh(trait):phylo + idh(trait):haplo, 
+#                                     rcov = ~idh(trait):units, 
+#                                     data = dfactivity, 
+#                                     family = "multinomial9",
+#                                     prior = prior5,
+#                                     thin = 400,
+#                                     burnin = 100000,
+#                                     nitt = 1800000,
+#                                     verbose = TRUE)
 
 # Posterior summaries and MCMC diagnostics (OS model)
 summary(OS_multinomial_activity)
@@ -1835,23 +1687,23 @@ dfactivity$PPothers_N <- rowSums(dfactivity[, c(44, 46, 47)])
 # - Fixed effects: trait-specific intercepts plus trait-specific slopes for
 #   activity (scaleactivityCareau2010) and weight (scaleweight)
 # - Random effects: genetic influence via phylo (common ancestry) and haplo (haplotype sharing)
-PP_multinomial_activity <- MCMCglmm(cbind(PPcongen_N, 
-                                          PPdegen_N,
-                                          PPinfect_N,
-                                          PPinflam_N, 
-                                          PPmetab_N, 
-                                          PPneopl_N,
-                                          PPtraum_N,
-                                          PPothers_N) ~ trait -1 + trait:scaleactivityCareau2010 + trait:scaleweight, 
-                                    random = ~idh(trait):phylo + idh(trait):haplo, 
-                                    rcov = ~idh(trait):units, 
-                                    data = dfactivity, 
-                                    family = "multinomial8",
-                                    prior = prior3,
-                                    thin = 400,
-                                    burnin = 100000,
-                                    nitt = 1800000,
-                                    verbose = TRUE)
+# PP_multinomial_activity <- MCMCglmm(cbind(PPcongen_N, 
+#                                           PPdegen_N,
+#                                           PPinfect_N,
+#                                           PPinflam_N, 
+#                                           PPmetab_N, 
+#                                           PPneopl_N,
+#                                           PPtraum_N,
+#                                           PPothers_N) ~ trait -1 + trait:scaleactivityCareau2010 + trait:scaleweight, 
+#                                     random = ~idh(trait):phylo + idh(trait):haplo, 
+#                                     rcov = ~idh(trait):units, 
+#                                     data = dfactivity, 
+#                                     family = "multinomial8",
+#                                     prior = prior3,
+#                                     thin = 400,
+#                                     burnin = 100000,
+#                                     nitt = 1800000,
+#                                     verbose = TRUE)
 
 # Posterior summary (PP model)
 summary(PP_multinomial_activity)
@@ -2029,24 +1881,24 @@ dfaggressivenessCareau2010$haplo <- Hapsvd2
 dfaggressivenessCareau2010$OSothers_N <- rowSums(dfaggressivenessCareau2010[, c(27, 31, 34, 37)])
 
 # Fit OS multinomial model with category-specific aggressiveness effects
-OS_multinomial_aggressiveness <- MCMCglmm(cbind(OScv_N,
-                                                OSendo_N,
-                                                OSgi_N, 
-                                                OShem_N, 
-                                                OSms_N, 
-                                                OSneuro_N,
-                                                OSresp_N, 
-                                                OSuro_N,
-                                                OSothers_N) ~ trait-1+trait:scaleaggressivenessCareau2010,
-                                          random = ~idh(trait):phylo + idh(trait):haplo, 
-                                          rcov = ~idh(trait):units, 
-                                          data = dfaggressivenessCareau2010, 
-                                          family = "multinomial9",
-                                          prior = prior5,
-                                          thin = 400,
-                                          burnin = 100000,
-                                          nitt = 1800000,
-                                          verbose = TRUE)
+# OS_multinomial_aggressiveness <- MCMCglmm(cbind(OScv_N,
+#                                                 OSendo_N,
+#                                                 OSgi_N, 
+#                                                 OShem_N, 
+#                                                 OSms_N, 
+#                                                 OSneuro_N,
+#                                                 OSresp_N, 
+#                                                 OSuro_N,
+#                                                 OSothers_N) ~ trait-1+trait:scaleaggressivenessCareau2010,
+#                                           random = ~idh(trait):phylo + idh(trait):haplo, 
+#                                           rcov = ~idh(trait):units, 
+#                                           data = dfaggressivenessCareau2010, 
+#                                           family = "multinomial9",
+#                                           prior = prior5,
+#                                           thin = 400,
+#                                           burnin = 100000,
+#                                           nitt = 1800000,
+#                                           verbose = TRUE)
 
 # Posterior summary of the OS aggressiveness model
 summary(OS_multinomial_aggressiveness)
@@ -2059,23 +1911,23 @@ summary(OS_multinomial_aggressiveness)
 dfaggressivenessCareau2010$PPothers_N <- rowSums(dfaggressivenessCareau2010[, c(44, 46, 47)])
 
 # Fit PP multinomial model with category-specific aggressiveness effects
-PP_multinomial_aggressiveness <- MCMCglmm(cbind(PPinfect_N, 
-                                                PPcongen_N, 
-                                                PPdegen_N, 
-                                                PPinflam_N, 
-                                                PPmetab_N, 
-                                                PPneopl_N,
-                                                PPtraum_N,
-                                                PPothers_N) ~ trait-1+trait:scaleaggressivenessCareau2010, 
-                                          random = ~idh(trait):phylo + idh(trait):haplo, 
-                                          rcov = ~idh(trait):units, 
-                                          data = dfaggressivenessCareau2010, 
-                                          family = "multinomial8",
-                                          prior = prior3,
-                                          thin = 400,
-                                          burnin = 100000,
-                                          nitt = 1800000,
-                                          verbose = TRUE)
+# PP_multinomial_aggressiveness <- MCMCglmm(cbind(PPinfect_N, 
+#                                                 PPcongen_N, 
+#                                                 PPdegen_N, 
+#                                                 PPinflam_N, 
+#                                                 PPmetab_N, 
+#                                                 PPneopl_N,
+#                                                 PPtraum_N,
+#                                                 PPothers_N) ~ trait-1+trait:scaleaggressivenessCareau2010, 
+#                                           random = ~idh(trait):phylo + idh(trait):haplo, 
+#                                           rcov = ~idh(trait):units, 
+#                                           data = dfaggressivenessCareau2010, 
+#                                           family = "multinomial8",
+#                                           prior = prior3,
+#                                           thin = 400,
+#                                           burnin = 100000,
+#                                           nitt = 1800000,
+#                                           verbose = TRUE)
 
 # Posterior summary of the PP aggressiveness model
 summary(PP_multinomial_aggressiveness)
@@ -2224,24 +2076,24 @@ dftrainability$OSothers_N <- rowSums(dftrainability[, c(27, 31, 34, 37)])
 
 # Fit OS multinomial model with category-specific trainability effects,
 # controlling for body weight and genetic non-independence among breeds
-OS_multinomial_trainability <- MCMCglmm(cbind(OScv_N,
-                                              OSendo_N,
-                                              OSgi_N, 
-                                              OShem_N, 
-                                              OSms_N, 
-                                              OSneuro_N,
-                                              OSresp_N, 
-                                              OSuro_N,
-                                              OSothers_N) ~ trait -1 + trait:scaletrainabilityCareau2010 + trait:scaleweight,
-                                        random = ~idh(trait):phylo + idh(trait):haplo, 
-                                        rcov = ~idh(trait):units, 
-                                        data = dftrainability, 
-                                        family = "multinomial9",
-                                        prior = prior5,
-                                        thin = 400,
-                                        burnin = 100000,
-                                        nitt = 1800000,
-                                        verbose = TRUE)
+# OS_multinomial_trainability <- MCMCglmm(cbind(OScv_N,
+#                                               OSendo_N,
+#                                               OSgi_N, 
+#                                               OShem_N, 
+#                                               OSms_N, 
+#                                               OSneuro_N,
+#                                               OSresp_N, 
+#                                               OSuro_N,
+#                                               OSothers_N) ~ trait -1 + trait:scaletrainabilityCareau2010 + trait:scaleweight,
+#                                         random = ~idh(trait):phylo + idh(trait):haplo, 
+#                                         rcov = ~idh(trait):units, 
+#                                         data = dftrainability, 
+#                                         family = "multinomial9",
+#                                         prior = prior5,
+#                                         thin = 400,
+#                                         burnin = 100000,
+#                                         nitt = 1800000,
+#                                         verbose = TRUE)
 
 # Posterior summary of the OS trainability model
 summary(OS_multinomial_trainability)
@@ -2255,23 +2107,23 @@ dftrainability$PPothers_N <- rowSums(dftrainability[, c(44, 46, 47)])
 
 # Fit PP multinomial model with category-specific trainability effects,
 # controlling for body weight and genetic structure
-PP_multinomial_trainability <- MCMCglmm(cbind(PPcongen_N, 
-                                              PPdegen_N,
-                                              PPinfect_N,
-                                              PPinflam_N, 
-                                              PPmetab_N, 
-                                              PPneopl_N,
-                                              PPtraum_N,
-                                              PPothers_N) ~ trait -1 + trait:scaletrainabilityCareau2010 + trait:scaleweight, 
-                                        random = ~idh(trait):phylo + idh(trait):haplo, 
-                                        rcov = ~idh(trait):units, 
-                                        data = dftrainability, 
-                                        family = "multinomial8",
-                                        prior = prior3,
-                                        thin = 400,
-                                        burnin = 100000,
-                                        nitt = 1800000,
-                                        verbose = TRUE)
+# PP_multinomial_trainability <- MCMCglmm(cbind(PPcongen_N, 
+#                                               PPdegen_N,
+#                                               PPinfect_N,
+#                                               PPinflam_N, 
+#                                               PPmetab_N, 
+#                                               PPneopl_N,
+#                                               PPtraum_N,
+#                                               PPothers_N) ~ trait -1 + trait:scaletrainabilityCareau2010 + trait:scaleweight, 
+#                                         random = ~idh(trait):phylo + idh(trait):haplo, 
+#                                         rcov = ~idh(trait):units, 
+#                                         data = dftrainability, 
+#                                         family = "multinomial8",
+#                                         prior = prior3,
+#                                         thin = 400,
+#                                         burnin = 100000,
+#                                         nitt = 1800000,
+#                                         verbose = TRUE)
 
 # Posterior summary of the PP trainability model
 summary(PP_multinomial_trainability)
@@ -2294,8 +2146,10 @@ coef_data_PP_trainability <- as.data.frame(summary_PP_trainability) %>%
 # Ensure causes of death are plotted in the same order as they appear in the model
 coef_data_PP_trainability$Trait <- factor(coef_data_PP_trainability$Trait, levels = unique(coef_data_PP_trainability$Trait))
 
-#################
-################# FIGURES
+################################## 
+##################################
+##################################
+################################## FIGURES
 
 # Create a list to store the results (one small data.frame per VCV column/component)
 OS_multinomial_results_list <- lapply(1:ncol(OS_multinomial$VCV), function(i) {
@@ -3225,7 +3079,7 @@ table <- table %>%
 # - dashed line at 0 (null effect)
 # - horizontal error bars = 95% HPD
 # - points = posterior means, filled by whether HPD excludes 0
-p1 <- ggplot(table5, aes(x = Post.Mean, y = Cause)) +
+p1 <- ggplot(table, aes(x = Post.Mean, y = Cause)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_errorbarh(aes(xmin = l.95, xmax = u.95, color = sig), height = 0.2) +
   geom_point(aes(fill = sig), shape = 21, size = 3, stroke = 0.4) +
@@ -3616,15 +3470,6 @@ print(p_PP_train,  vp = vplayout(1, 2))
 # Correlation test between standardized weight and standardized growth
 cor.test(data$scaleweight, data$scalegrowth)
 
-# Scatter plot of standardized weight vs standardized growth with semi-transparent points
-plot(data$scaleweight, data$scalegrowth,
-     pch = 19, col = rgb(0,0,1,0.4),
-     xlab = "Scale weight (adult size A)",
-     ylab = "Scale growth (G)")
-
-# Add a linear regression line of growth ~ weight
-abline(lm(scalegrowth ~ scaleweight, data = data), col="red")
-
 # Repeat scatter plot (same variables), using the same point styling
 plot(data$scaleweight, data$scalegrowth,
      pch = 19,
@@ -3642,479 +3487,189 @@ text(x = min(data$scaleweight, na.rm = TRUE),
      pos = 4, cex = 1.3, font = 2,
      col = "black")
 
+# ------------------------------------------------------------
+# Posterior Predictive Checks (PPC)
+# ------------------------------------------------------------
+library(MCMCglmm)
+library(ggplot2)
+library(bayesplot)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## ============================================================
-## OS_multinomial_weight
-## ============================================================
-# This section builds a plotting table (posterior mean + 95% HPD)
-# for the trait-specific effect of body weight on OS causes of death,
-# then produces a horizontal forest-style plot.
-
-# Manually assemble posterior summaries (posterior mean and 95% HPD interval)
-# for the weight effect across OS causes of death
-table <- data.frame(
-  Cause    = c("Cardiovascular", "Endocrine", "Gastrointestinal",
-               "Hematopoietic", "Musculoskeletal", "Neurologic",
-               "Respiratory", "Urogenital"),
+ppc_mcmcglmm <- function(model, data, outcome_col, n_sims = 100, label = NULL) {
+  # model: an MCMCglmm object
+  # data: the dataframe used in the model
+  # outcome_col: the name of the outcome variable (e.g. "OScv_N")
+  # n_sims: number of posterior predictive datasets to simulate
+  # label: optional text label for the model
   
-  Post.Mean = c(0.031, -0.225, 0.146, 0.111, 0.349, -0.061, -0.003, -0.117),
-  l.95      = c(-0.057, -0.340, 0.076, 0.005, 0.271, -0.149, -0.087, -0.193),
-  u.95      = c(0.121, -0.115, 0.208, 0.212, 0.428, 0.029, 0.086, -0.034)
-)
-
-# Order causes by the posterior mean effect size and label whether the 95% HPD
-# interval excludes zero (interpreted as a credible non-zero effect)
-table <- table %>%
-  mutate(
-    Cause = factor(Cause, levels = Cause[order(Post.Mean)]),
-    sig = ifelse(l.95 > 0 | u.95 < 0, "HPD excludes 0", "HPD includes 0")
-  )
-
-# Create a horizontal forest plot:
-# - dashed line at 0 (null effect)
-# - horizontal error bars = 95% HPD
-# - points = posterior means, filled by whether HPD excludes 0
-p1 <- ggplot(table5, aes(x = Post.Mean, y = Cause)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_errorbarh(aes(xmin = l.95, xmax = u.95, color = sig), height = 0.2) +
-  geom_point(aes(fill = sig), shape = 21, size = 3, stroke = 0.4) +
-  labs(x = "Effect of body weight (posterior mean, 95% HPD)",
-       y = "Cause of death (OS)", color = "", fill = "") +
-  theme_minimal(base_size = 14) +
-  theme(legend.position = "bottom")
-
-
-
-## ============================================================
-## PP_multinomial_weight
-## ============================================================
-# Same plotting workflow as above, but for PP causes of death:
-# build a table with posterior mean + 95% HPD for the weight effect,
-# then produce a forest-style plot.
-
-# Manually assemble posterior summaries (posterior mean and 95% HPD interval)
-# for the weight effect across PP causes of death
-table_PP_weight <- data.frame(
-  Cause = c("Infectious", "Degenerative", "Congenital",
-            "Inflammatory", "Metabolic", "Neoplastic",
-            "Traumatic"),
+  if (!(outcome_col %in% names(data))) {
+    stop(paste("Outcome column", outcome_col, "not found in data."))
+  }
   
-  Post.Mean = c(0.101, -0.145, 0.090,
-                -0.083, -0.021, 0.258,
-                0.057),
+  n_iter <- length(model$Sol[,1])
+  sim_idx <- sample(1:n_iter, n_sims)
+  y_obs <- data[[outcome_col]]
+  y_rep <- matrix(NA, nrow = n_sims, ncol = length(y_obs))
+  is_multinomial <- any(grepl("multinomial", model$family))
+  X <- model$X
+  vcv_names <- colnames(model$VCV)
+  unit_col_pattern <- paste0(outcome_col, ".*units")
+  unit_col_idx <- grep(unit_col_pattern, vcv_names)
   
-  l.95 = c(0.009, -0.256, -0.040,
-           -0.215, -0.109, 0.144,
-           -0.037),
+  if (length(unit_col_idx) == 0 && !is_multinomial) {
+    unit_col_idx <- grep("^units$", vcv_names)
+  }
   
-  u.95 = c(0.194, -0.027, 0.218,
-           0.065, 0.062, 0.382,
-           0.154)
-)
-
-# Order causes by posterior mean and flag whether HPD excludes zero
-table_PP_weight <- table_PP_weight %>%
-  mutate(
-    Cause = factor(Cause, levels = Cause[order(Post.Mean)]),
-    sig = ifelse(l.95 > 0 | u.95 < 0, "HPD excludes 0", "HPD includes 0")
-  )
-
-# Forest plot for PP: posterior mean points + HPD intervals; dashed line at 0
-p2 <- ggplot(table_PP_weight, aes(x = Post.Mean, y = Cause)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_errorbarh(aes(xmin = l.95, xmax = u.95, color = sig), height = 0.2) +
-  geom_point(aes(fill = sig), shape = 21, size = 3, stroke = 0.4) +
-  labs(x = "Effect of body weight (posterior mean, 95% HPD)",
-       y = "Cause of death (PP)", color = "", fill = "") +
-  theme_minimal(base_size = 14) +
-  theme(legend.position = "bottom")
-
-
-
-## ============================================================
-## OS_multinomial_growth
-## ============================================================
-# Same workflow, but now plotting the trait-specific effect of growth
-# on OS causes of death.
-
-# Manually assemble posterior summaries (posterior mean and 95% HPD interval)
-# for the growth effect across OS causes of death
-table_OS_growth <- data.frame(
-  Cause = c("Cardiovascular", "Endocrine", "Gastrointestinal",
-            "Hematopoietic", "Musculoskeletal", "Neurologic",
-            "Respiratory", "Urogenital"),
+  for (i in 1:n_sims) {
+    idx <- sim_idx[i]
+    beta <- model$Sol[idx,]
+    
+    # Calculate fixed effects contribution
+    # This version follows Achaz's original logic
+    sol_names <- colnames(model$Sol)
+    outcome_sol_idx <- grep(paste0("trait", outcome_col, "$"), sol_names)
+    
+    if (length(outcome_sol_idx) > 0) {
+      mu <- model$Sol[idx, outcome_sol_idx[1]]
+    } else {
+      mu <- (X %*% beta)[,1]
+    }
+    
+    if (is_multinomial) {
+      n_vec <- if ("n" %in% names(data)) data$n else rep(round(median(y_obs, na.rm = TRUE)), length(y_obs))
+      prob <- plogis(mu)
+      y_rep[i,] <- rbinom(length(y_obs), size = round(n_vec), prob = prob)
+    } else {
+      if (length(unit_col_idx) == 0) {
+        stop("Could not find residual variance column in model$VCV. Please check model structure or if outcome_col matches model traits.")
+      }
+      res_var <- model$VCV[idx, unit_col_idx[1]]
+      y_rep[i,] <- rnorm(length(y_obs), mean = mu, sd = sqrt(res_var))
+    }
+  }
   
-  Post.Mean = c(-0.029, -0.168, 0.089,
-                0.132, 0.268, -0.095,
-                -0.056, -0.089),
+  # Visualize PPC
+  ppc_data <- data.frame(y = y_obs, type = "Observed")
+  for (j in 1:n_sims) {
+    ppc_data <- rbind(ppc_data, data.frame(y = y_rep[j,], type = paste0("Simulated_", j)))
+  }
   
-  l.95 = c(-0.135, -0.291, 0.008,
-           0.021, 0.176, -0.201,
-           -0.144, -0.187),
+  title_text <- if (is.null(label)) "Posterior Predictive Check" else paste("PPC:", label)
   
-  u.95 = c(0.070, -0.040, 0.175,
-           0.257, 0.367, 0.006,
-           0.031, -0.009)
-)
-
-# Order causes by posterior mean and flag whether HPD excludes zero
-table_OS_growth <- table_OS_growth %>%
-  mutate(
-    Cause = factor(Cause, levels = Cause[order(Post.Mean)]),
-    sig = ifelse(l.95 > 0 | u.95 < 0, "HPD excludes 0", "HPD includes 0")
-  )
-
-# Forest plot for OS growth effects
-p3 <- ggplot(table_OS_growth, aes(x = Post.Mean, y = Cause)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_errorbarh(aes(xmin = l.95, xmax = u.95, color = sig), height = 0.2) +
-  geom_point(aes(fill = sig), shape = 21, size = 3, stroke = 0.4) +
-  labs(x = "Effect of growth (posterior mean, 95% HPD)",
-       y = "Cause of death (OS)", color = "", fill = "") +
-  theme_minimal(base_size = 14) +
-  theme(legend.position = "bottom")
-
-
-
-## ============================================================
-## PP_multinomial_growth
-## ============================================================
-# Same workflow, but for the trait-specific effect of growth on PP causes of death.
-
-# Manually assemble posterior summaries (posterior mean and 95% HPD interval)
-# for the growth effect across PP causes of death
-table_PP_growth <- data.frame(
-  Cause = c("Infectious", "Congenital", "Degenerative",
-            "Inflammatory", "Metabolic", "Neoplastic",
-            "Traumatic"),
-  
-  Post.Mean = c(0.070, 0.071, -0.120,
-                -0.023, -0.007, 0.271,
-                0.040),
-  
-  l.95 = c(-0.030, -0.063, -0.251,
-           -0.156, -0.104, 0.132,
-           -0.071),
-  
-  u.95 = c(0.187, 0.207, 0.004,
-           0.118, 0.092, 0.410,
-           0.149)
-)
-
-# Order causes by posterior mean and flag whether HPD excludes zero
-table_PP_growth <- table_PP_growth %>%
-  mutate(
-    Cause = factor(Cause, levels = Cause[order(Post.Mean)]),
-    sig = ifelse(l.95 > 0 | u.95 < 0, "HPD excludes 0", "HPD includes 0")
-  )
-
-# Forest plot for PP growth effects
-p4 <- ggplot(table_PP_growth, aes(x = Post.Mean, y = Cause)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_errorbarh(aes(xmin = l.95, xmax = u.95, color = sig), height = 0.2) +
-  geom_point(aes(fill = sig), shape = 21, size = 3, stroke = 0.4) +
-  labs(x = "Effect of growth (posterior mean, 95% HPD)",
-       y = "Cause of death (PP)", color = "", fill = "") +
-  theme_minimal(base_size = 14) +
-  theme(legend.position = "bottom")
-
-
-
-## ============================================================
-## 5. PANEL 2×2 — base grid only (no external packages)
-## ============================================================
-# Combine the four ggplot objects into a single 2x2 panel layout
-# using the base 'grid' system.
-
-library(grid)   # base R package used to arrange plots on a grid layout
-
-# Initialize a new plotting page and create a 2x2 layout
-grid.newpage()
-pushViewport(viewport(layout = grid.layout(2, 2)))
-
-# Helper function to place plots into specific grid cells
-vplayout <- function(row, col) viewport(layout.pos.row = row,
-                                        layout.pos.col = col)
-
-# Print each plot into its assigned position
-print(p1, vp = vplayout(1, 1))
-print(p2, vp = vplayout(1, 2))
-print(p3, vp = vplayout(2, 1))
-print(p4, vp = vplayout(2, 2))
-
-
-######################################
-######################################
-
-## -----------------------------------------
-## Table: PP × reproductive investment
-## -----------------------------------------
-# Create a plotting table for the PP model including reproductive investment:
-# posterior mean and 95% HPD interval for each PP cause.
-
-table_PP_repinv <- data.frame(
-  Cause = c("Congenital", "Degenerative", "Inflammatory",
-            "Infectious", "Metabolic", "Neoplastic",
-            "Traumatic"),
-  
-  Post.Mean = c(-0.477, -0.427, -0.372,
-                -0.052, -0.231, 0.040,
-                -0.034),
-  
-  l.95 = c(-0.785, -0.749, -0.663,
-           -0.249, -0.474, -0.067,
-           -0.240),
-  
-  u.95 = c(-0.167, -0.107, -0.070,
-           0.137, 0.011, 0.159,
-           0.186)
-)
-
-# Order causes by posterior mean and flag whether HPD excludes zero
-table_PP_repinv <- table_PP_repinv %>%
-  mutate(
-    Cause = factor(Cause, levels = Cause[order(Post.Mean)]),
-    sig   = ifelse(l.95 > 0 | u.95 < 0,
-                   "HPD excludes 0", "HPD includes 0")
-  )
-
-# Forest plot: reproductive investment effect (PP)
-p_PP_repinv <- ggplot(table_PP_repinv, aes(x = Post.Mean, y = Cause)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  
-  geom_errorbarh(aes(xmin = l.95, xmax = u.95, color = sig),
-                 height = 0.2) +
-  
-  geom_point(aes(fill = sig),
-             shape = 21, size = 3, stroke = 0.4) +
-  
-  labs(x = "Effect of reproductive investment (posterior mean, 95% HPD)",
-       y = "Cause of death (PP)", color = "", fill = "") +
-  
-  theme_minimal(base_size = 14) +
-  theme(legend.position = "bottom")
-
-# Display the PP × reproductive investment plot
-p_PP_repinv
-
-## -----------------------------------------
-## Table: PP × trainability
-## -----------------------------------------
-# Create a plotting table for the PP model including trainability:
-# posterior mean and 95% HPD interval for each PP cause.
-
-table_PP_train <- data.frame(
-  Cause = c("Congenital", "Degenerative", "Infectious",
-            "Inflammatory", "Metabolic", "Neoplastic",
-            "Traumatic"),
-  
-  Post.Mean = c(-0.151, 0.046, -0.116,
-                0.091, -0.036, 0.031,
-                -0.028),
-  
-  l.95 = c(-0.380, -0.149, -0.222,
-           -0.055, -0.182, -0.033,
-           -0.154),
-  
-  u.95 = c(0.093, 0.223, -0.002,
-           0.269, 0.107, 0.094,
-           0.092)
-)
-
-# Order causes by posterior mean and flag whether HPD excludes zero
-table_PP_train <- table_PP_train %>%
-  mutate(
-    Cause = factor(Cause, levels = Cause[order(Post.Mean)]),
-    sig   = ifelse(l.95 > 0 | u.95 < 0,
-                   "HPD excludes 0", "HPD includes 0")
-  )
-
-# Forest plot: trainability effect (PP)
-p_PP_train <- ggplot(table_PP_train, aes(x = Post.Mean, y = Cause)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  
-  geom_errorbarh(aes(xmin = l.95, xmax = u.95, color = sig),
-                 height = 0.2) +
-  
-  geom_point(aes(fill = sig),
-             shape = 21, size = 3, stroke = 0.4) +
-  
-  labs(x = "Effect of trainability (posterior mean, 95% HPD)",
-       y = "Cause of death (PP)", color = "", fill = "") +
-  
-  theme_minimal(base_size = 14) +
-  theme(legend.position = "bottom")
-
-# Display the PP × trainability plot
-p_PP_train
-
-## ============================================================
-## PP × REPRODUCTIVE INVESTMENT
-## ============================================================
-# Repeat the PP × reproductive investment plotting workflow:
-# define the table, flag HPD significance, and build a forest plot.
-
-table_PP_repinv <- data.frame(
-  Cause = c("Congenital", "Degenerative", "Inflammatory",
-            "Infectious", "Metabolic", "Neoplastic",
-            "Traumatic"),
-  
-  Post.Mean = c(-0.477, -0.427, -0.372,
-                -0.052, -0.231, 0.040,
-                -0.034),
-  
-  l.95 = c(-0.785, -0.749, -0.663,
-           -0.249, -0.474, -0.067,
-           -0.240),
-  
-  u.95 = c(-0.167, -0.107, -0.070,
-           0.137, 0.011, 0.159,
-           0.186)
-)
-
-# Order causes by posterior mean and flag whether HPD excludes zero
-table_PP_repinv <- table_PP_repinv %>%
-  mutate(
-    Cause = factor(Cause, levels = Cause[order(Post.Mean)]),
-    sig   = ifelse(l.95 > 0 | u.95 < 0,
-                   "HPD excludes 0", "HPD includes 0")
-  )
-
-# Forest plot: reproductive investment effect (PP)
-p_PP_repinv <- ggplot(table_PP_repinv, aes(x = Post.Mean, y = Cause)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_errorbarh(aes(xmin = l.95, xmax = u.95, color = sig),
-                 height = 0.2) +
-  geom_point(aes(fill = sig),
-             shape = 21, size = 3, stroke = 0.4) +
-  labs(x = "Effect of reproductive investment (posterior mean, 95% HPD)",
-       y = "Cause of death (PP)", color = "", fill = "") +
-  theme_minimal(base_size = 14) +
-  theme(legend.position = "bottom")
-
-
-
-## ============================================================
-## PP × TRAINABILITY
-## ============================================================
-# Repeat the PP × trainability plotting workflow:
-# define the table, flag HPD significance, and build a forest plot.
-
-table_PP_train <- data.frame(
-  Cause = c("Congenital", "Degenerative", "Infectious",
-            "Inflammatory", "Metabolic", "Neoplastic",
-            "Traumatic"),
-  
-  Post.Mean = c(-0.151, 0.046, -0.116,
-                0.091, -0.036, 0.031,
-                -0.028),
-  
-  l.95 = c(-0.380, -0.149, -0.222,
-           -0.055, -0.182, -0.033,
-           -0.154),
-  
-  u.95 = c(0.093, 0.223, -0.002,
-           0.269, 0.107, 0.094,
-           0.092)
-)
-
-# Order causes by posterior mean and flag whether HPD excludes zero
-table_PP_train <- table_PP_train %>%
-  mutate(
-    Cause = factor(Cause, levels = Cause[order(Post.Mean)]),
-    sig   = ifelse(l.95 > 0 | u.95 < 0,
-                   "HPD excludes 0", "HPD includes 0")
-  )
-
-# Forest plot: trainability effect (PP)
-p_PP_train <- ggplot(table_PP_train, aes(x = Post.Mean, y = Cause)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_errorbarh(aes(xmin = l.95, xmax = u.95, color = sig),
-                 height = 0.2) +
-  geom_point(aes(fill = sig),
-             shape = 21, size = 3, stroke = 0.4) +
-  labs(x = "Effect of trainability (posterior mean, 95% HPD)",
-       y = "Cause of death (PP)", color = "", fill = "") +
-  theme_minimal(base_size = 14) +
-  theme(legend.position = "bottom")
-
-
-
-## ============================================================
-## PANEL 1×2 (base grid only; no extra packages)
-## ============================================================
-# Arrange the PP reproductive investment plot and PP trainability plot side-by-side
-# in a 1x2 panel using the base grid system.
-
-grid.newpage()
-pushViewport(viewport(layout = grid.layout(1, 2)))
-
-# Helper function to place plots into specific grid cells
-vplayout <- function(row, col) viewport(layout.pos.row = row,
-                                        layout.pos.col = col)
-
-# Print each plot into its assigned position
-print(p_PP_repinv, vp = vplayout(1, 1))
-print(p_PP_train,  vp = vplayout(1, 2))
-
+  ggplot(ppc_data, aes(x = y, group = type, color = type == "Observed")) +
+    geom_density(alpha = 0.1, linewidth = 0.5, na.rm = TRUE) +
+    scale_color_manual(values = c("gray", "red")) +
+    theme_minimal() +
+    labs(title = title_text,
+         subtitle = paste("Outcome:", outcome_col, "| Observed (red) vs. Simulations (gray)"),
+         x = outcome_col, y = "Density") +
+    theme(legend.position = "none")
+}
 
 # ------------------------------------------------------------
-# Diagnostics / descriptive plots: relationship between weight and growth
+# Assemble all PPC plots for one model
 # ------------------------------------------------------------
 
-# Correlation test between standardized weight and standardized growth
-cor.test(data$scaleweight, data$scalegrowth)
+assemble_all_ppcs <- function(model, data, categories, n_sims = 50) {
+  plot_list <- list()
+  
+  for (cat in categories) {
+    message("Plotting: ", cat)
+    
+    if (cat %in% names(data)) {
+      p <- ppc_mcmcglmm(model, data, cat, n_sims = n_sims)
+      p <- p + labs(title = cat, subtitle = NULL) +
+        theme(plot.title = element_text(size = 10))
+      plot_list[[cat]] <- p
+    } else {
+      message("Skipping ", cat, " - column not found in data.")
+    }
+  }
+  
+  if (length(plot_list) == 0) {
+    stop("No valid category columns found in data.")
+  }
+  
+  if (!requireNamespace("gridExtra", quietly = TRUE)) {
+    install.packages("gridExtra")
+  }
+  
+  do.call(gridExtra::grid.arrange, c(plot_list, ncol = 3))
+}
 
-# Scatter plot of standardized weight vs standardized growth with semi-transparent points
-plot(data$scaleweight, data$scalegrowth,
-     pch = 19, col = rgb(0,0,1,0.4),
-     xlab = "Scale weight (adult size A)",
-     ylab = "Scale growth (G)")
+# ------------------------------------------------------------
+# Categories
+# OS models use the 8 focal categories shown in Achaz's figures
+# PP models must match the fitted response and therefore use PPothers_N
+# ------------------------------------------------------------
 
-# Add a linear regression line of growth ~ weight
-abline(lm(scalegrowth ~ scaleweight, data = data), col="red")
+categories_os <- c(
+  "OScv_N", "OSendo_N", "OSgi_N", "OShem_N",
+  "OSms_N", "OSneuro_N", "OSresp_N", "OSuro_N", "OSothers_N"
+)
 
-# Repeat scatter plot (same variables), using the same point styling
-plot(data$scaleweight, data$scalegrowth,
-     pch = 19,
-     col = rgb(0,0,1,0.4),
-     xlab = "Scale weight (adult size A)",
-     ylab = "Scale growth (G)")
+categories_pp <- c(
+  "PPcongen_N", "PPdegen_N", "PPinfect_N", "PPinflam_N",
+  "PPmetab_N", "PPneopl_N", "PPtraum_N", "PPothers_N"
+)
 
-# Add the regression line with increased line width for visibility
-abline(lm(scalegrowth ~ scaleweight, data = data), col = "red", lwd = 2)
+# ------------------------------------------------------------
+# PPCs already done by Achaz, but corrected to use the proper subsets
+# ------------------------------------------------------------
 
-# Add a text annotation with the correlation value on the plot
-text(x = min(data$scaleweight, na.rm = TRUE),
-     y = max(data$scalegrowth, na.rm = TRUE),
-     labels = paste0("r = ", round(0.8867644, 3)),
-     pos = 4, cex = 1.3, font = 2,
-     col = "black")
+# 1) OS no predictor
+full_ppc_OS <- assemble_all_ppcs(OS_multinomial, fleming, categories_os)
+ggsave("PPC_OS_All.pdf", full_ppc_OS, width = 12, height = 12)
 
+# 4) PP no predictor
+full_ppc_PP <- assemble_all_ppcs(PP_multinomial, fleming, categories_pp)
+ggsave("PPC_PP_all.pdf", full_ppc_PP, width = 12, height = 12)
+
+# 2) OS weight
+full_ppc_OS_weight <- assemble_all_ppcs(OS_multinomial_weight, dfweight, categories_os)
+ggsave("PPC_OS_weight.pdf", full_ppc_OS_weight, width = 12, height = 12)
+
+# 3) OS growth
+full_ppc_OS_growth <- assemble_all_ppcs(OS_multinomial_growth, dfgrowth, categories_os)
+ggsave("PPC_OS_growth.pdf", full_ppc_OS_growth, width = 12, height = 12)
+
+# ------------------------------------------------------------
+
+# 5) PP weight
+full_ppc_PP_weight <- assemble_all_ppcs(PP_multinomial_weight, dfweight, categories_pp)
+ggsave("PPC_PP_weight.pdf", full_ppc_PP_weight, width = 12, height = 12)
+
+# 6) PP growth
+full_ppc_PP_growth <- assemble_all_ppcs(PP_multinomial_growth, dfgrowth, categories_pp)
+ggsave("PPC_PP_growth.pdf", full_ppc_PP_growth, width = 12, height = 12)
+
+# 7) OS reproductive investment
+full_ppc_OS_bwkgxls <- assemble_all_ppcs(OS_multinomial_bwkgxls, dfbwkgxls, categories_os)
+ggsave("PPC_OS_bwkgxls.pdf", full_ppc_OS_bwkgxls, width = 12, height = 12)
+
+# 8) PP reproductive investment
+full_ppc_PP_bwkgxls <- assemble_all_ppcs(PP_multinomial_bwkgxls, dfbwkgxls, categories_pp)
+ggsave("PPC_PP_bwkgxls.pdf", full_ppc_PP_bwkgxls, width = 12, height = 12)
+
+# 9) OS activity
+full_ppc_OS_activity <- assemble_all_ppcs(OS_multinomial_activity, dfactivity, categories_os)
+ggsave("PPC_OS_activity.pdf", full_ppc_OS_activity, width = 12, height = 12)
+
+# 10) PP activity
+full_ppc_PP_activity <- assemble_all_ppcs(PP_multinomial_activity, dfactivity, categories_pp)
+ggsave("PPC_PP_activity.pdf", full_ppc_PP_activity, width = 12, height = 12)
+
+# 11) OS aggressiveness
+full_ppc_OS_aggressiveness <- assemble_all_ppcs(OS_multinomial_aggressiveness, dfaggressivenessCareau2010, categories_os)
+ggsave("PPC_OS_aggressiveness.pdf", full_ppc_OS_aggressiveness, width = 12, height = 12)
+
+# 12) PP aggressiveness
+full_ppc_PP_aggressiveness <- assemble_all_ppcs(PP_multinomial_aggressiveness, dfaggressivenessCareau2010, categories_pp)
+ggsave("PPC_PP_aggressiveness.pdf", full_ppc_PP_aggressiveness, width = 12, height = 12)
+
+# 13) OS trainability
+full_ppc_OS_trainability <- assemble_all_ppcs(OS_multinomial_trainability, dftrainability, categories_os)
+ggsave("PPC_OS_trainability.pdf", full_ppc_OS_trainability, width = 12, height = 12)
+
+# 14) PP trainability
+full_ppc_PP_trainability <- assemble_all_ppcs(PP_multinomial_trainability, dftrainability, categories_pp)
+ggsave("PPC_PP_trainability.pdf", full_ppc_PP_trainability, width = 12, height = 12)
