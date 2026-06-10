@@ -14,7 +14,7 @@ data.xlsx: An Excel version including additional header rows with self-explanato
 
 data.csv: A plain CSV version without extra headers, intended for direct import into R and other statistical software.
 
-Both files contain identical data and differ only the additional header of the .xlsx version.
+Both files contain identical data and differ only in the additional header of the .xlsx version.
 
 2. Structure of the main dataset (data)
 
