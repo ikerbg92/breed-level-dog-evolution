@@ -10,8 +10,6 @@ All analyses are conducted at the breed level and are fully reproducible using t
 
 The complete life-history and mortality dataset is provided under the name data, in two equivalent formats:
 
-data.xlsx: An Excel version including additional header rows with self-explanatory column labels to facilitate inspection and manual exploration.
-
 data.csv: A plain CSV version without extra headers, intended for direct import into R and other statistical software.
 
 Both files contain identical data and differ only in the additional header of the .xlsx version.
