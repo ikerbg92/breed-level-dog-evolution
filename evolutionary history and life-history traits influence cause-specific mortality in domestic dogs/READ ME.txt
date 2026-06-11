@@ -57,11 +57,11 @@ R script is commented and organized to allow full reproducibility of the analyse
 
 The file finalresults.RData contains saved R model outputs.
 
-6. Notes on reuse
+6. PPC PDF files. Posterior predictive checks (PPCs) used to assess model fit by comparing observed data distributions with datasets simulated from the fitted Bayesian multinomial models.
 
-All data and code are provided for transparency and reproducibility. Users are encouraged to cite the associated article and the original data sources when reusing these materials.
+7. Notes on reuse: all data and code are provided for transparency and reproducibility. Users are encouraged to cite the associated article and the original data sources when reusing these materials.
 
-Literature cited (sources for the life history data)
+8. Literature cited (sources for the life history data)
 
 American Kennel Club (AKC) (n.d.). Retrieved February 3, 2021, from https://www.akc.org/
 Bell, J., K. Cavanagh, L. Tilley, and F. W. Smith. 2012. Veterinary medical guide to dog and cat breeds. CRC press 656 pp. 
