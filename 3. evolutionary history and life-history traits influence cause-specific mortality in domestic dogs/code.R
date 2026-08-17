@@ -1,4 +1,3 @@
-setwd("C:/Users/ikerb/OneDrive - Instituto de Ecología/GitHub/evolutionary history and life-history traits influence cause-specific mortality in domestic dogs")
 setwd()
 
 # ------------------------------------------------------------
